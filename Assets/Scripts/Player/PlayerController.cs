@@ -72,7 +72,7 @@ public class PlayerController : MonoBehaviour
     {
         if (!canMove) return;
 
-        if (Keyboard.current.spaceKey.isPressed && isGrounded)
+        if (Keyboard.current.spaceKey.wasPressedThisFrame && isGrounded)
         {
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
             rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
