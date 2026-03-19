@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
@@ -10,6 +10,10 @@ public class PlayerController : MonoBehaviour
     public float airSpeedMultiplier = 1.5f;
     public bool canMove = true;
 
+    [Header("Pickup Kamera")]
+    public float pickupOffsetX = -0.5f;
+    public float cameraShiftSpeed = 5f;
+
     public Transform groundCheck;
     public float groundDistance = 0.3f;
     public LayerMask groundMask;
@@ -18,11 +22,18 @@ public class PlayerController : MonoBehaviour
     private Camera playerCamera;
     private Rigidbody rb;
     private bool isGrounded;
+    private Vector3 defaultCameraLocalPosition;
+    private Vector3 targetCameraLocalPosition;
 
     void Start()
     {
         playerCamera = GetComponentInChildren<Camera>();
         rb = GetComponent<Rigidbody>();
+
+        // Startposition der Kamera merken wie sie im Inspector eingestellt ist
+        defaultCameraLocalPosition = playerCamera.transform.localPosition;
+        targetCameraLocalPosition = defaultCameraLocalPosition;
+
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
@@ -31,6 +42,13 @@ public class PlayerController : MonoBehaviour
     {
         HandleMouseLook();
         HandleJump();
+
+        // Kamera smooth zum Ziel bewegen
+        playerCamera.transform.localPosition = Vector3.Lerp(
+            playerCamera.transform.localPosition,
+            targetCameraLocalPosition,
+            Time.deltaTime * cameraShiftSpeed
+        );
 
         if (Keyboard.current.escapeKey.wasPressedThisFrame)
         {
@@ -99,5 +117,13 @@ public class PlayerController : MonoBehaviour
         verticalRotation -= mouseDelta.y;
         verticalRotation = Mathf.Clamp(verticalRotation, -80f, 80f);
         playerCamera.transform.localRotation = Quaternion.Euler(verticalRotation, 0f, 0f);
+    }
+
+    public void SetPickupCameraOffset(bool holding)
+    {
+        if (holding)
+            targetCameraLocalPosition = defaultCameraLocalPosition + new Vector3(pickupOffsetX, 0f, 0f);
+        else
+            targetCameraLocalPosition = defaultCameraLocalPosition;
     }
 }
