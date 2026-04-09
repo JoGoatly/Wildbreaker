@@ -1,7 +1,7 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class PlayerController : MonoBehaviour
+public class Player2Controller : MonoBehaviour
 {
     public float moveSpeed = 5f;
     public float sprintSpeed = 10f;
@@ -14,10 +14,6 @@ public class PlayerController : MonoBehaviour
     public float pickupOffsetX = -0.5f;
     public float cameraShiftSpeed = 5f;
 
-    [Header("Respawn")]
-    public float fallThreshold = -20f;           // Ab welcher Y-Höhe = gefallen
-    public float savePositionInterval = 0.5f;    // Wie oft Position gespeichert wird
-
     public Transform groundCheck;
     public float groundDistance = 0.3f;
     public LayerMask groundMask;
@@ -29,11 +25,6 @@ public class PlayerController : MonoBehaviour
     private Vector3 defaultCameraLocalPosition;
     private Vector3 targetCameraLocalPosition;
 
-    // Respawn
-    private Vector3 lastSafePosition;
-    private Quaternion lastSafeRotation;
-    private float saveTimer;
-
     void Start()
     {
         playerCamera = GetComponentInChildren<Camera>();
@@ -41,33 +32,18 @@ public class PlayerController : MonoBehaviour
 
         defaultCameraLocalPosition = playerCamera.transform.localPosition;
         targetCameraLocalPosition = defaultCameraLocalPosition;
-
-        // Startposition als erste sichere Position
-        lastSafePosition = transform.position;
-        lastSafeRotation = transform.rotation;
-
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
     }
 
     void Update()
     {
         HandleMouseLook();
         HandleJump();
-        CheckFallRespawn();
-        SaveSafePosition();
 
         playerCamera.transform.localPosition = Vector3.Lerp(
             playerCamera.transform.localPosition,
             targetCameraLocalPosition,
             Time.deltaTime * cameraShiftSpeed
         );
-
-        if (Keyboard.current.escapeKey.wasPressedThisFrame)
-        {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-        }
     }
 
     void FixedUpdate()
@@ -81,45 +57,11 @@ public class PlayerController : MonoBehaviour
         isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
     }
 
-    void SaveSafePosition()
-    {
-        saveTimer += Time.deltaTime;
-
-        // Nur speichern wenn am Boden und Timer abgelaufen
-        if (isGrounded && saveTimer >= savePositionInterval)
-        {
-            lastSafePosition = transform.position;
-            lastSafeRotation = transform.rotation;
-            saveTimer = 0f;
-        }
-    }
-
-    void CheckFallRespawn()
-    {
-        if (transform.position.y < fallThreshold)
-        {
-            Respawn();
-        }
-    }
-
-    void Respawn()
-    {
-        // Velocity stoppen
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-
-        // Zur letzten sicheren Position teleportieren
-        transform.position = lastSafePosition;
-        transform.rotation = lastSafeRotation;
-
-        Debug.Log("Respawned an letzter sicherer Position!");
-    }
-
     void HandleJump()
     {
         if (!canMove) return;
 
-        if (Keyboard.current.spaceKey.wasPressedThisFrame && isGrounded)
+        if (Keyboard.current.numpad0Key.wasPressedThisFrame && isGrounded)
         {
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
             rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
@@ -135,11 +77,11 @@ public class PlayerController : MonoBehaviour
         }
 
         Vector2 moveInput = new Vector2(
-            Keyboard.current.dKey.isPressed ? 1f : Keyboard.current.aKey.isPressed ? -1f : 0f,
-            Keyboard.current.wKey.isPressed ? 1f : Keyboard.current.sKey.isPressed ? -1f : 0f
+            Keyboard.current.lKey.isPressed ? 1f : Keyboard.current.jKey.isPressed ? -1f : 0f,
+            Keyboard.current.iKey.isPressed ? 1f : Keyboard.current.kKey.isPressed ? -1f : 0f
         );
 
-        bool isSprinting = Keyboard.current.leftShiftKey.isPressed;
+        bool isSprinting = Keyboard.current.rightShiftKey.isPressed;
         float currentSpeed = isSprinting ? sprintSpeed : moveSpeed;
 
         if (!isGrounded)
@@ -157,11 +99,19 @@ public class PlayerController : MonoBehaviour
     {
         if (!canMove) return;
 
-        Vector2 mouseDelta = Mouse.current.delta.ReadValue() * mouseSensitivity * 0.1f;
+        float arrowX = 0f;
+        float arrowY = 0f;
 
-        transform.Rotate(0f, mouseDelta.x, 0f);
+        if (Keyboard.current.leftArrowKey.isPressed) arrowX = -1f;
+        if (Keyboard.current.rightArrowKey.isPressed) arrowX = 1f;
+        if (Keyboard.current.upArrowKey.isPressed) arrowY = 1f;
+        if (Keyboard.current.downArrowKey.isPressed) arrowY = -1f;
 
-        verticalRotation -= mouseDelta.y;
+        float sensitivity = mouseSensitivity * 100f * Time.deltaTime;
+
+        transform.Rotate(0f, arrowX * sensitivity, 0f);
+
+        verticalRotation -= arrowY * sensitivity;
         verticalRotation = Mathf.Clamp(verticalRotation, -80f, 80f);
         playerCamera.transform.localRotation = Quaternion.Euler(verticalRotation, 0f, 0f);
     }

@@ -1,8 +1,8 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.InputSystem;
 using System.Collections.Generic;
 
-public class PickupManager : MonoBehaviour
+public class Player2PickupManager : MonoBehaviour
 {
     [System.Serializable]
     public class PickupEntry
@@ -15,8 +15,6 @@ public class PickupManager : MonoBehaviour
         public AudioClip collisionSound;
         public bool showDropLine = true;
     }
-
-    public static List<GameObject> currentlyHeld = new List<GameObject>();
 
     [Header("Aufhebbare Objekte")]
     public List<PickupEntry> pickupableItems;
@@ -45,7 +43,7 @@ public class PickupManager : MonoBehaviour
     private PickupEntry heldEntry = null;
     private PickupEntry nearbyEntry = null;
     private InteractionManager interactionManager;
-    private PlayerController playerController;
+    private Player2Controller player2Controller;
     private Camera playerCamera;
     private AudioSource audioSource;
     private LineRenderer lineRenderer;
@@ -56,8 +54,13 @@ public class PickupManager : MonoBehaviour
 
     void Start()
     {
-        interactionManager = GetComponent<InteractionManager>();
-        playerController = GetComponent<PlayerController>();
+        GameObject player2 = GameObject.Find("Player2");
+        if (player2 != null)
+        {
+            interactionManager = player2.GetComponent<InteractionManager>();
+            player2Controller = player2.GetComponent<Player2Controller>();
+        }
+
         playerCamera = GetComponentInChildren<Camera>();
         audioSource = GetComponent<AudioSource>();
         currentHoldDistance = holdDistance;
@@ -65,10 +68,10 @@ public class PickupManager : MonoBehaviour
         if (audioSource == null)
             audioSource = gameObject.AddComponent<AudioSource>();
 
-        lineRenderer = CreateLineRenderer("DropLine", 0.02f, false);
-        ringRenderer = CreateLineRenderer("DropRing", 0.03f, true);
-        throwLineRenderer = CreateLineRenderer("ThrowLine", 0.03f, false);
-        throwRingRenderer = CreateLineRenderer("ThrowRing", 0.04f, true);
+        lineRenderer = CreateLineRenderer("DropLine2", 0.02f, false);
+        ringRenderer = CreateLineRenderer("DropRing2", 0.03f, true);
+        throwLineRenderer = CreateLineRenderer("ThrowLine2", 0.03f, false);
+        throwRingRenderer = CreateLineRenderer("ThrowRing2", 0.04f, true);
 
         foreach (var entry in pickupableItems)
         {
@@ -101,6 +104,8 @@ public class PickupManager : MonoBehaviour
 
     void Update()
     {
+        if (interactionManager == null || player2Controller == null) return;
+
         if (heldObject == null)
         {
             CheckNearbyItems();
@@ -122,7 +127,7 @@ public class PickupManager : MonoBehaviour
                 lineRenderer.positionCount = 0;
                 ringRenderer.positionCount = 0;
                 DrawThrowPreview();
-                interactionManager.OverridePrompt("Linksklick - Werfen\nE - Fallen lassen");
+                interactionManager.OverridePrompt("Enter - Werfen\nE - Fallen lassen");
             }
             else
             {
@@ -137,19 +142,17 @@ public class PickupManager : MonoBehaviour
                     ringRenderer.positionCount = 0;
                 }
 
-                interactionManager.OverridePrompt("E - Fallen lassen\nRechtsklick halten - Zielen");
+                interactionManager.OverridePrompt("E - Fallen lassen\nRechtsklick - Zielen");
             }
         }
 
-        if (Keyboard.current.eKey.wasPressedThisFrame)
-        {
-            if (heldObject != null)
-                DropObject();
-            else if (nearbyEntry != null)
-                PickupObject(nearbyEntry);
-        }
+        if (Keyboard.current.enterKey.wasPressedThisFrame && heldObject == null && nearbyEntry != null)
+            PickupObject(nearbyEntry);
 
-        if (Mouse.current.leftButton.wasPressedThisFrame && heldObject != null)
+        if (Keyboard.current.eKey.wasPressedThisFrame && heldObject != null)
+            DropObject();
+
+        if (Keyboard.current.enterKey.wasPressedThisFrame && heldObject != null)
             ThrowObject();
     }
 
@@ -270,7 +273,7 @@ public class PickupManager : MonoBehaviour
         foreach (var entry in pickupableItems)
         {
             if (entry.item == null) continue;
-            if (currentlyHeld.Contains(entry.item)) continue;
+            if (PickupManager.currentlyHeld.Contains(entry.item)) continue;
 
             float distance = Vector3.Distance(transform.position, entry.item.transform.position);
 
@@ -295,7 +298,7 @@ public class PickupManager : MonoBehaviour
         heldObject = entry.item;
         heldEntry = entry;
         currentHoldDistance = holdDistance;
-        currentlyHeld.Add(heldObject);
+        PickupManager.currentlyHeld.Add(heldObject);
 
         Rigidbody rb = heldObject.GetComponent<Rigidbody>();
         if (rb != null)
@@ -308,8 +311,8 @@ public class PickupManager : MonoBehaviour
         if (entry.pickupSound != null)
             audioSource.PlayOneShot(entry.pickupSound);
 
-        playerController.SetPickupCameraOffset(true);
-        interactionManager.OverridePrompt("E - Fallen lassen\nRechtsklick halten - Zielen");
+        player2Controller.SetPickupCameraOffset(true);
+        interactionManager.OverridePrompt("E - Fallen lassen\nRechtsklick - Zielen");
     }
 
     void DropObject()
@@ -318,12 +321,12 @@ public class PickupManager : MonoBehaviour
         if (rb != null)
             rb.useGravity = true;
 
-        currentlyHeld.Remove(heldObject);
+        PickupManager.currentlyHeld.Remove(heldObject);
         ClearAllLines();
         heldObject = null;
         heldEntry = null;
         isAiming = false;
-        playerController.SetPickupCameraOffset(false);
+        player2Controller.SetPickupCameraOffset(false);
         interactionManager.ClearOverridePrompt();
     }
 
@@ -336,12 +339,12 @@ public class PickupManager : MonoBehaviour
             rb.AddForce(playerCamera.transform.forward * throwForce, ForceMode.Impulse);
         }
 
-        currentlyHeld.Remove(heldObject);
+        PickupManager.currentlyHeld.Remove(heldObject);
         ClearAllLines();
         heldObject = null;
         heldEntry = null;
         isAiming = false;
-        playerController.SetPickupCameraOffset(false);
+        player2Controller.SetPickupCameraOffset(false);
         interactionManager.ClearOverridePrompt();
     }
 
@@ -359,31 +362,5 @@ public class PickupManager : MonoBehaviour
             targetPosition = transform.position + directionFromPlayer.normalized * minDistance;
 
         heldObject.transform.position = Vector3.Lerp(heldObject.transform.position, targetPosition, Time.deltaTime * 15f);
-    }
-}
-
-public class ItemCollisionReporter : MonoBehaviour
-{
-    private AudioSource audioSource;
-    private AudioClip collisionClip;
-    private float minImpactForce;
-
-    public void Init(AudioSource source, AudioClip clip, float minForce)
-    {
-        audioSource = source;
-        collisionClip = clip;
-        minImpactForce = minForce;
-    }
-
-    void OnCollisionEnter(Collision collision)
-    {
-        if (collisionClip == null) return;
-        if (audioSource == null) return;
-
-        float impact = collision.relativeVelocity.magnitude;
-        if (impact < minImpactForce) return;
-
-        float volume = Mathf.Clamp01(impact / 10f);
-        audioSource.PlayOneShot(collisionClip, volume);
     }
 }
