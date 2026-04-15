@@ -124,16 +124,10 @@ MonoBehaviour:
   health: 100
   breakSound: {fileID: 0}
   hitSound: {fileID: 0}
-  brokenPrefab: {fileID: 3785352462591145415, guid: 3191bd6f856f1b940ba3c04cac3c7764, type: 3}
-  pieceCountX: 4
-  pieceCountY: 6
-  pieceCountZ: 1
-  pieceSize: 0.9
+  brokenPrefab: {fileID: 6295548586275655372, guid: a69510823f0f1ed458b7856a725f41af, type: 3}
+  pieceForce: 3
+  pieceForceRange: 1
   destroyDelay: 3
-  lateralForce: 0.15
-  upwardForce: 0.1
-  tumbleForce: 1.5
-  horizontalJitter: 0.05
-  sizeVariation: 0.85
+  randomizeForce: 1
   shakeDuration: 0.15
   shakeMagnitude: 0.05
