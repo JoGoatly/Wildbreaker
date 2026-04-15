@@ -264,10 +264,6 @@ MonoBehaviour:
   musicSliderSound: {fileID: 8300000, guid: 1bcb2912fae89934ba43c9756aa7d255, type: 3}
   sfxSliderSound: {fileID: 8300000, guid: 1bcb2912fae89934ba43c9756aa7d255, type: 3}
   sliderSoundCooldown: 0.08
-  musicSlider: {fileID: 992215226}
-  sfxSlider: {fileID: 1596615944}
-  musicValueText: {fileID: 1385883702}
-  sfxValueText: {fileID: 546818928}
 --- !u!4 &50383134
 Transform:
   m_ObjectHideFlags: 0
@@ -1437,6 +1433,7 @@ GameObject:
   - component: {fileID: 858126551}
   - component: {fileID: 858126553}
   - component: {fileID: 858126552}
+  - component: {fileID: 858126554}
   m_Layer: 5
   m_Name: SettingsPanel
   m_TagString: Untagged
@@ -1509,6 +1506,22 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 858126550}
   m_CullTransparentMesh: 1
+--- !u!114 &858126554
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 858126550}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f3f2791556751f74ca557ff69b5361e2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  musicSlider: {fileID: 992215226}
+  sfxSlider: {fileID: 1596615944}
+  musicValueText: {fileID: 1385883702}
+  sfxValueText: {fileID: 546818928}
 --- !u!1 &992215224
 GameObject:
   m_ObjectHideFlags: 0

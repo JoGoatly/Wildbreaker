@@ -7,7 +7,7 @@ public class MainMenuManager : MonoBehaviour
 
     public void OnPlayButtonClicked()
     {
-        SceneManager.LoadScene("GameScene");
+        SceneManager.LoadScene("testing");
     }
 
     public void OnSettingsButtonClicked()

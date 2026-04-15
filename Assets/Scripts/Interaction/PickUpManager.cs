@@ -47,7 +47,6 @@ public class PickupManager : MonoBehaviour
     private InteractionManager interactionManager;
     private PlayerController playerController;
     private Camera playerCamera;
-    private AudioSource audioSource;
     private LineRenderer lineRenderer;
     private LineRenderer ringRenderer;
     private LineRenderer throwLineRenderer;
@@ -59,11 +58,9 @@ public class PickupManager : MonoBehaviour
         interactionManager = GetComponent<InteractionManager>();
         playerController = GetComponent<PlayerController>();
         playerCamera = GetComponentInChildren<Camera>();
-        audioSource = GetComponent<AudioSource>();
         currentHoldDistance = holdDistance;
 
-        if (audioSource == null)
-            audioSource = gameObject.AddComponent<AudioSource>();
+        // No more local AudioSource — AudioManager handles everything
 
         lineRenderer = CreateLineRenderer("DropLine", 0.02f, false);
         ringRenderer = CreateLineRenderer("DropRing", 0.03f, true);
@@ -96,7 +93,9 @@ public class PickupManager : MonoBehaviour
         ItemCollisionReporter reporter = entry.item.GetComponent<ItemCollisionReporter>();
         if (reporter == null)
             reporter = entry.item.AddComponent<ItemCollisionReporter>();
-        reporter.Init(audioSource, entry.collisionSound, minImpactForce);
+
+        // Pass the AudioManager's sfx source so volume is always correct
+        reporter.Init(AudioManager.Instance.GetSFXSource(), entry.collisionSound, minImpactForce);
     }
 
     void Update()
@@ -305,8 +304,9 @@ public class PickupManager : MonoBehaviour
             rb.angularVelocity = Vector3.zero;
         }
 
+        // Route through AudioManager so SFX volume is respected
         if (entry.pickupSound != null)
-            audioSource.PlayOneShot(entry.pickupSound);
+            AudioManager.Instance.PlaySFX(entry.pickupSound);
 
         playerController.SetPickupCameraOffset(true);
         interactionManager.OverridePrompt("E - Fallen lassen\nRechtsklick halten - Zielen");

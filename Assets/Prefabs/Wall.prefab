@@ -122,9 +122,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   health: 100
-  breakSound: {fileID: 0}
-  hitSound: {fileID: 0}
+  hitSound: {fileID: 8300000, guid: 6664122a94c8c6a4392552b5f5a2a0b9, type: 3}
+  lastHitBreakSound: {fileID: 8300000, guid: f0b9fe5e305bcbb4ab2e2772e3caad1f, type: 3}
   brokenPrefab: {fileID: 6295548586275655372, guid: a69510823f0f1ed458b7856a725f41af, type: 3}
+  rotationOffset: {x: 0, y: -90, z: 0}
   pieceForce: 3
   pieceForceRange: 1
   destroyDelay: 3

@@ -1,16 +1,18 @@
 using UnityEngine;
 using System.Collections;
-using System.Collections.Generic;
 
 public class Destructible : MonoBehaviour
 {
     [Header("Einstellungen")]
     public float health = 100f;
-    public AudioClip breakSound;
+
+    [Header("Sound")]
     public AudioClip hitSound;
+    public AudioClip lastHitBreakSound;
 
     [Header("Bruch Effekt")]
-    public GameObject brokenPrefab;  // WallBroken Prefab reinziehen
+    public GameObject brokenPrefab;
+    public Vector3 rotationOffset = new Vector3(0f, -90f, 0f);
     public float pieceForce = 3f;
     public float pieceForceRange = 1f;
     public float destroyDelay = 5f;
@@ -20,13 +22,11 @@ public class Destructible : MonoBehaviour
     public float shakeDuration = 0.15f;
     public float shakeMagnitude = 0.05f;
 
-    private AudioSource audioSource;
     private Vector3 originalPosition;
     private bool isDestroyed = false;
 
     void Start()
     {
-        audioSource = gameObject.AddComponent<AudioSource>();
         originalPosition = transform.position;
     }
 
@@ -36,13 +36,22 @@ public class Destructible : MonoBehaviour
 
         health -= damage;
 
-        if (hitSound != null)
-            audioSource.PlayOneShot(hitSound);
-
-        StartCoroutine(ShakeAnimation());
-
         if (health <= 0f)
+        {
+            // Final punch — play break sound through AudioManager
+            if (lastHitBreakSound != null && AudioManager.Instance != null)
+                AudioManager.Instance.PlaySFX(lastHitBreakSound);
+
             Break();
+        }
+        else
+        {
+            // Normal hit — play hit sound through AudioManager
+            if (hitSound != null && AudioManager.Instance != null)
+                AudioManager.Instance.PlaySFX(hitSound);
+
+            StartCoroutine(ShakeAnimation());
+        }
     }
 
     IEnumerator ShakeAnimation()
@@ -63,26 +72,22 @@ public class Destructible : MonoBehaviour
     {
         isDestroyed = true;
 
-        if (breakSound != null)
-            AudioSource.PlayClipAtPoint(breakSound, transform.position);
-
         if (brokenPrefab != null)
         {
-            // Prefab an exakt gleicher Position und Rotation spawnen
+            Quaternion correctedRotation = transform.rotation * Quaternion.Euler(rotationOffset);
+
             GameObject broken = Instantiate(
                 brokenPrefab,
                 transform.position,
-                transform.rotation
+                correctedRotation
             );
 
-            // Alle Rigidbodies der Bruchstücke mit Kraft versehen
             Rigidbody[] pieces = broken.GetComponentsInChildren<Rigidbody>();
 
             foreach (var rb in pieces)
             {
                 if (randomizeForce)
                 {
-                    // Zufällige Richtung von der Mitte weg
                     Vector3 dir = (rb.transform.position - transform.position).normalized;
                     dir += Random.insideUnitSphere * 0.5f;
                     float force = Random.Range(pieceForce - pieceForceRange, pieceForce + pieceForceRange);
