@@ -261,7 +261,7 @@ MonoBehaviour:
   - button: {fileID: 357783604}
     clickSound: {fileID: 8300000, guid: 41fe389abc552ae4ea67e78dcfbfa9fb, type: 3}
     hoverSound: {fileID: 8300000, guid: 6d93b0a4d6262184fab88b1840b8af95, type: 3}
-  musicSliderSound: {fileID: 8300000, guid: 1bcb2912fae89934ba43c9756aa7d255, type: 3}
+  musicSliderSound: {fileID: 0}
   sfxSliderSound: {fileID: 8300000, guid: 1bcb2912fae89934ba43c9756aa7d255, type: 3}
   sliderSoundCooldown: 0.08
 --- !u!4 &50383134
