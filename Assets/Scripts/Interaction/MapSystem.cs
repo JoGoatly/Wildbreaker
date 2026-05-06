@@ -15,10 +15,6 @@ public class MapSystem : MonoBehaviour
     public float zoomSpeed = 0.5f;
     public float minZoom = 10f;
     public float maxZoom = 80f;
-    public float minX = -50f;
-    public float maxX = 50f;
-    public float minZ = -50f;
-    public float maxZ = 50f;
 
     [Header("Map UI")]
     public GameObject mapPanel;
@@ -65,7 +61,7 @@ public class MapSystem : MonoBehaviour
     private bool isMapOpen = false;
     private bool isDragging = false;
     private Vector3 lastMousePosition;
-    private Vector3 mapCameraBasePosition;
+    private Vector3 mapCameraPosition;
     private RenderTexture mapRenderTexture;
     private RenderTexture minimapRenderTexture;
     private PlayerHealth playerHealth;
@@ -101,7 +97,7 @@ public class MapSystem : MonoBehaviour
         playerHealth = FindFirstObjectByType<PlayerHealth>();
         playerController = FindFirstObjectByType<PlayerController>();
 
-        // ── Map Kamera Setup ──
+        // Map Kamera Setup
         mapRenderTexture = new RenderTexture(1024, 1024, 16);
         mapCamera.targetTexture = mapRenderTexture;
         mapRenderImage.texture = mapRenderTexture;
@@ -112,8 +108,6 @@ public class MapSystem : MonoBehaviour
         mapCamera.farClipPlane = 100f;
         mapCamera.clearFlags = CameraClearFlags.SolidColor;
         mapCamera.backgroundColor = new Color(0.12f, 0.12f, 0.12f);
-        mapCameraBasePosition = new Vector3(0f, mapHeight, 0f);
-        mapCamera.transform.position = mapCameraBasePosition;
         mapCamera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
 
         mapPanel.SetActive(false);
@@ -122,7 +116,7 @@ public class MapSystem : MonoBehaviour
         if (fastTravelPanel != null)
             fastTravelPanel.SetActive(false);
 
-        // ── Minimap Kamera Setup ──
+        // Minimap Kamera Setup
         minimapRenderTexture = new RenderTexture(512, 512, 16);
         minimapCamera.targetTexture = minimapRenderTexture;
         minimapRenderImage.texture = minimapRenderTexture;
@@ -134,13 +128,11 @@ public class MapSystem : MonoBehaviour
         minimapCamera.clearFlags = CameraClearFlags.SolidColor;
         minimapCamera.backgroundColor = new Color(0.12f, 0.12f, 0.12f);
 
-        // Minimap Spieler Marker
         if (minimapPlayerMarkerImage != null)
             minimapPlayerMarkerImage.color = minimapPlayerColor;
         if (minimapPlayerMarker != null)
             minimapPlayerMarker.sizeDelta = new Vector2(minimapPlayerSize, minimapPlayerSize);
 
-        // ── Buttons ──
         if (fastTravelButton != null)
             fastTravelButton.onClick.AddListener(OnFastTravel);
         if (fastTravelCancelButton != null)
@@ -155,7 +147,6 @@ public class MapSystem : MonoBehaviour
 
     void Update()
     {
-        // Minimap immer updaten
         UpdateMinimap();
 
         if (Keyboard.current.mKey.wasPressedThisFrame)
@@ -172,6 +163,13 @@ public class MapSystem : MonoBehaviour
         UpdatePlayerMarker();
         UpdateCheckpointMarkers();
 
+        // Kamera Position setzen
+        mapCamera.transform.position = new Vector3(
+            mapCameraPosition.x,
+            mapHeight,
+            mapCameraPosition.z
+        );
+
         if (Keyboard.current.escapeKey.wasPressedThisFrame)
             CloseMap();
     }
@@ -184,19 +182,15 @@ public class MapSystem : MonoBehaviour
     {
         if (playerHealth == null) return;
 
-        // Kamera folgt Spieler
         Vector3 playerPos = playerHealth.transform.position;
         minimapCamera.transform.position = new Vector3(playerPos.x, minimapHeight, playerPos.z);
 
-        // Kamera dreht sich mit dem Spieler
         float playerYRotation = playerHealth.transform.eulerAngles.y;
         minimapCamera.transform.rotation = Quaternion.Euler(90f, playerYRotation, 0f);
 
-        // Spieler Marker immer in der Mitte
         if (minimapPlayerMarker != null)
             minimapPlayerMarker.anchoredPosition = Vector2.zero;
 
-        // Checkpoint Marker updaten
         UpdateMinimapMarkers();
     }
 
@@ -236,7 +230,6 @@ public class MapSystem : MonoBehaviour
             {
                 Vector3 viewportPos = minimapCamera.WorldToViewportPoint(marker.worldPosition);
 
-                // Nur anzeigen wenn im sichtbaren Bereich
                 bool inView = viewportPos.x > 0f && viewportPos.x < 1f &&
                               viewportPos.y > 0f && viewportPos.y < 1f &&
                               viewportPos.z > 0f;
@@ -270,21 +263,23 @@ public class MapSystem : MonoBehaviour
         mapPanel.SetActive(true);
         mapCamera.gameObject.SetActive(true);
 
-        // Minimap verstecken wenn große Map offen
-        if (minimapPanel != null)
-            minimapPanel.SetActive(false);
-
+        // Kamera startet über Spieler
         if (playerHealth != null)
         {
             Vector3 playerPos = playerHealth.transform.position;
-            mapCamera.transform.position = new Vector3(playerPos.x, mapHeight, playerPos.z);
+            mapCameraPosition = new Vector3(playerPos.x, mapHeight, playerPos.z);
         }
+
+        if (minimapPanel != null)
+            minimapPanel.SetActive(false);
 
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
         if (playerController != null)
             playerController.canMove = false;
+
+        isDragging = false;
 
         UpdateCheckpointMarkers();
         PlaySound(mapOpenSound);
@@ -296,7 +291,6 @@ public class MapSystem : MonoBehaviour
         mapPanel.SetActive(false);
         mapCamera.gameObject.SetActive(false);
 
-        // Minimap wieder anzeigen
         if (minimapPanel != null)
             minimapPanel.SetActive(true);
 
@@ -342,19 +336,14 @@ public class MapSystem : MonoBehaviour
                 float zoomFactor = mapCamera.orthographicSize / 30f;
                 float speed = dragSpeed * zoomFactor;
 
-                Vector3 camPos = mapCamera.transform.position;
-                camPos.x -= delta.x * speed * Time.unscaledDeltaTime;
-                camPos.z -= delta.y * speed * Time.unscaledDeltaTime;
-
-                camPos.x = Mathf.Clamp(camPos.x, minX, maxX);
-                camPos.z = Mathf.Clamp(camPos.z, minZ, maxZ);
-
-                mapCamera.transform.position = camPos;
+                mapCameraPosition.x -= delta.x * speed * Time.unscaledDeltaTime;
+                mapCameraPosition.z -= delta.y * speed * Time.unscaledDeltaTime;
             }
 
             lastMousePosition = currentMousePosition;
         }
 
+        // Scroll = Zoom
         float scroll = Mouse.current.scroll.ReadValue().y;
         if (scroll != 0f)
         {

@@ -1,11 +1,12 @@
 ﻿using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.UI;
 
 [RequireComponent(typeof(NavMeshAgent))]
 public class EnemyMelee : MonoBehaviour
 {
     [Header("Stats")]
-    public float health = 50f;
+    public float maxHealth = 50f;
     public float attackDamage = 15f;
     public float attackRange = 2.5f;
     public float attackCooldown = 2f;
@@ -24,6 +25,12 @@ public class EnemyMelee : MonoBehaviour
     public Color attackColor = Color.yellow;
     public Color hitColor = Color.white;
 
+    [Header("Health Bar")]
+    public Slider healthBarSlider;
+    public GameObject healthBarObject;
+    public bool hideHealthBarWhenFull = true;
+
+    private float currentHealth;
     private NavMeshAgent agent;
     private PlayerHealth player;
     private float lastAttackTime = 0f;
@@ -31,6 +38,7 @@ public class EnemyMelee : MonoBehaviour
 
     void Start()
     {
+        currentHealth = maxHealth;
         agent = GetComponent<NavMeshAgent>();
         agent.speed = moveSpeed;
         player = FindFirstObjectByType<PlayerHealth>();
@@ -40,6 +48,16 @@ public class EnemyMelee : MonoBehaviour
 
         if (enemyRenderer != null)
             enemyRenderer.material.color = normalColor;
+
+        if (healthBarSlider != null)
+        {
+            healthBarSlider.minValue = 0f;
+            healthBarSlider.maxValue = maxHealth;
+            healthBarSlider.value = maxHealth;
+        }
+
+        if (hideHealthBarWhenFull && healthBarObject != null)
+            healthBarObject.SetActive(false);
     }
 
     void Update()
@@ -50,7 +68,6 @@ public class EnemyMelee : MonoBehaviour
             return;
         }
 
-        // Spieler tot oder nicht vorhanden → stehen bleiben
         if (player == null || player.isDead)
         {
             agent.ResetPath();
@@ -79,6 +96,8 @@ public class EnemyMelee : MonoBehaviour
         {
             agent.ResetPath();
         }
+
+        UpdateHealthBar();
     }
 
     void LookAtPlayer()
@@ -99,7 +118,6 @@ public class EnemyMelee : MonoBehaviour
 
     void Attack()
     {
-        // Nicht angreifen wenn Spieler tot ist
         if (player.isDead) return;
 
         lastAttackTime = Time.time;
@@ -120,7 +138,8 @@ public class EnemyMelee : MonoBehaviour
     {
         if (isDead) return;
 
-        health -= damage;
+        currentHealth -= damage;
+        currentHealth = Mathf.Max(currentHealth, 0f);
 
         if (hitSound != null && AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX(hitSound);
@@ -131,7 +150,14 @@ public class EnemyMelee : MonoBehaviour
             Invoke(nameof(ResetColor), 0.1f);
         }
 
-        if (health <= 0f)
+        // HealthBar updaten
+        if (healthBarSlider != null)
+            healthBarSlider.value = currentHealth;
+
+        if (hideHealthBarWhenFull && healthBarObject != null)
+            healthBarObject.SetActive(currentHealth < maxHealth);
+
+        if (currentHealth <= 0f)
             Die();
     }
 
@@ -145,6 +171,9 @@ public class EnemyMelee : MonoBehaviour
         agent.ResetPath();
         agent.enabled = false;
 
+        if (healthBarObject != null)
+            healthBarObject.SetActive(false);
+
         transform.Rotate(Vector3.right, 90f);
 
         Destroy(gameObject, 3f);
@@ -154,6 +183,21 @@ public class EnemyMelee : MonoBehaviour
     {
         if (enemyRenderer != null && !isDead)
             enemyRenderer.material.color = normalColor;
+    }
+
+    void UpdateHealthBar()
+    {
+        if (healthBarObject == null) return;
+        if (!healthBarObject.activeSelf) return;
+
+        // HealthBar dreht sich immer zur Kamera
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            healthBarObject.transform.LookAt(
+                healthBarObject.transform.position + cam.transform.forward
+            );
+        }
     }
 
     void OnDrawGizmosSelected()
