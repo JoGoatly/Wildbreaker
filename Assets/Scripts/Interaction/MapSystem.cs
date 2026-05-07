@@ -8,6 +8,13 @@ public class MapSystem : MonoBehaviour
 {
     public static MapSystem Instance { get; private set; }
 
+    [System.Serializable]
+    public class ChapterEntry
+    {
+        public string chapterName = "Kapitel 1";
+        public List<int> checkpointIndices = new List<int>();
+    }
+
     [Header("Map Kamera")]
     public Camera mapCamera;
     public float mapHeight = 50f;
@@ -37,6 +44,13 @@ public class MapSystem : MonoBehaviour
     public TMP_Text fastTravelAreaName;
     public Button fastTravelButton;
     public Button fastTravelCancelButton;
+
+    [Header("Kapitel Liste (Links)")]
+    public List<ChapterEntry> chapters = new List<ChapterEntry>();
+    public GameObject chapterListPanel;
+    public Transform chapterListParent;
+    public GameObject chapterHeaderPrefab;
+    public GameObject chapterEntryPrefab;
 
     [Header("Minimap")]
     public Camera minimapCamera;
@@ -69,6 +83,7 @@ public class MapSystem : MonoBehaviour
 
     private List<CheckpointMarkerData> checkpointMarkers = new List<CheckpointMarkerData>();
     private List<MinimapMarkerData> minimapMarkers = new List<MinimapMarkerData>();
+    private List<GameObject> chapterListItems = new List<GameObject>();
     private int selectedCheckpointIndex = -1;
 
     private class CheckpointMarkerData
@@ -143,6 +158,7 @@ public class MapSystem : MonoBehaviour
 
         CreateCheckpointMarkers();
         CreateMinimapMarkers();
+        CreateChapterList();
     }
 
     void Update()
@@ -160,18 +176,165 @@ public class MapSystem : MonoBehaviour
         if (!isMapOpen) return;
 
         HandleMapDrag();
-        UpdatePlayerMarker();
-        UpdateCheckpointMarkers();
 
-        // Kamera Position setzen
         mapCamera.transform.position = new Vector3(
             mapCameraPosition.x,
             mapHeight,
             mapCameraPosition.z
         );
 
+        UpdatePlayerMarker();
+        UpdateCheckpointMarkers();
+
         if (Keyboard.current.escapeKey.wasPressedThisFrame)
             CloseMap();
+    }
+
+    // ──────────────────────────────────────
+    // Kapitel Liste
+    // ──────────────────────────────────────
+
+    void CreateChapterList()
+    {
+        if (CheckpointManager.Instance == null) return;
+        if (chapterListParent == null) return;
+
+        foreach (var chapter in chapters)
+        {
+            if (chapterHeaderPrefab != null)
+            {
+                GameObject header = Instantiate(chapterHeaderPrefab, chapterListParent);
+                TMP_Text headerText = header.GetComponentInChildren<TMP_Text>();
+                if (headerText != null)
+                    headerText.text = chapter.chapterName;
+                chapterListItems.Add(header);
+            }
+
+            foreach (int cpIndex in chapter.checkpointIndices)
+            {
+                if (chapterEntryPrefab == null) continue;
+
+                CheckpointManager.CheckpointEntry cpEntry = null;
+                foreach (var entry in CheckpointManager.Instance.checkpoints)
+                {
+                    if (entry.index == cpIndex)
+                    {
+                        cpEntry = entry;
+                        break;
+                    }
+                }
+
+                if (cpEntry == null || cpEntry.checkpoint == null) continue;
+
+                GameObject entryObj = Instantiate(chapterEntryPrefab, chapterListParent);
+                TMP_Text entryText = entryObj.GetComponentInChildren<TMP_Text>();
+                Button entryButton = entryObj.GetComponentInChildren<Button>();
+
+                if (entryText != null)
+                    entryText.text = cpEntry.areaName;
+
+                int capturedIndex = cpIndex;
+                string capturedName = cpEntry.areaName;
+                Vector3 capturedPos = cpEntry.checkpoint.transform.position;
+
+                if (entryButton != null)
+                {
+                    entryButton.onClick.AddListener(() =>
+                    {
+                        OnChapterEntryClicked(capturedIndex, capturedName, capturedPos);
+                    });
+                }
+
+                chapterListItems.Add(entryObj);
+                entryObj.SetActive(false);
+            }
+        }
+    }
+
+    void UpdateChapterList()
+    {
+        if (CheckpointManager.Instance == null) return;
+
+        int highestIndex = CheckpointManager.Instance.GetHighestCheckpointIndex();
+
+        if (chapterListPanel != null)
+            chapterListPanel.SetActive(highestIndex >= 0);
+
+        if (highestIndex < 0) return;
+
+        int itemIndex = 0;
+
+        foreach (var chapter in chapters)
+        {
+            bool anyVisible = false;
+
+            if (chapterHeaderPrefab != null)
+                itemIndex++;
+
+            foreach (int cpIndex in chapter.checkpointIndices)
+            {
+                if (itemIndex >= chapterListItems.Count) break;
+
+                bool unlocked = cpIndex <= highestIndex;
+                chapterListItems[itemIndex].SetActive(unlocked);
+
+                if (unlocked)
+                    anyVisible = true;
+
+                itemIndex++;
+            }
+
+            if (chapterHeaderPrefab != null)
+            {
+                int headerIndex = itemIndex - chapter.checkpointIndices.Count - 1;
+                if (headerIndex >= 0 && headerIndex < chapterListItems.Count)
+                    chapterListItems[headerIndex].SetActive(anyVisible);
+            }
+        }
+    }
+
+    void OnChapterEntryClicked(int index, string areaName, Vector3 worldPos)
+    {
+        mapCameraPosition = new Vector3(worldPos.x, mapHeight, worldPos.z);
+
+        mapCamera.transform.position = new Vector3(
+            mapCameraPosition.x,
+            mapHeight,
+            mapCameraPosition.z
+        );
+
+        UpdateCheckpointMarkers();
+
+        if (fastTravelPanel != null)
+            fastTravelPanel.SetActive(false);
+
+        selectedCheckpointIndex = index;
+
+        if (fastTravelPanel != null)
+        {
+            foreach (var marker in checkpointMarkers)
+            {
+                if (marker.checkpointIndex == index)
+                {
+                    RectTransform panelRect = fastTravelPanel.GetComponent<RectTransform>();
+                    Vector2 markerPos = marker.rectTransform.anchoredPosition;
+
+                    panelRect.anchoredPosition = new Vector2(
+                        markerPos.x,
+                        markerPos.y - 30f
+                    );
+
+                    break;
+                }
+            }
+
+            fastTravelPanel.SetActive(true);
+
+            if (fastTravelAreaName != null)
+                fastTravelAreaName.text = areaName;
+        }
+
+        PlaySound(checkpointClickSound);
     }
 
     // ──────────────────────────────────────
@@ -263,7 +426,6 @@ public class MapSystem : MonoBehaviour
         mapPanel.SetActive(true);
         mapCamera.gameObject.SetActive(true);
 
-        // Kamera startet über Spieler
         if (playerHealth != null)
         {
             Vector3 playerPos = playerHealth.transform.position;
@@ -282,6 +444,7 @@ public class MapSystem : MonoBehaviour
         isDragging = false;
 
         UpdateCheckpointMarkers();
+        UpdateChapterList();
         PlaySound(mapOpenSound);
     }
 
@@ -338,18 +501,32 @@ public class MapSystem : MonoBehaviour
 
                 mapCameraPosition.x -= delta.x * speed * Time.unscaledDeltaTime;
                 mapCameraPosition.z -= delta.y * speed * Time.unscaledDeltaTime;
+
+                // Panel schließen beim Wischen
+                if (fastTravelPanel != null && fastTravelPanel.activeSelf)
+                    CloseFastTravelPanel();
             }
 
             lastMousePosition = currentMousePosition;
         }
 
-        // Scroll = Zoom
         float scroll = Mouse.current.scroll.ReadValue().y;
-        if (scroll != 0f)
+        if (scroll != 0f && !IsMouseOverChapterList())
         {
             mapCamera.orthographicSize -= scroll * zoomSpeed;
             mapCamera.orthographicSize = Mathf.Clamp(mapCamera.orthographicSize, minZoom, maxZoom);
         }
+    }
+
+    bool IsMouseOverChapterList()
+    {
+        if (chapterListPanel == null) return false;
+        if (!chapterListPanel.activeSelf) return false;
+
+        RectTransform rect = chapterListPanel.GetComponent<RectTransform>();
+        Vector2 mousePos = Mouse.current.position.ReadValue();
+
+        return RectTransformUtility.RectangleContainsScreenPoint(rect, mousePos);
     }
 
     void UpdatePlayerMarker()
@@ -442,7 +619,7 @@ public class MapSystem : MonoBehaviour
 
                     panelRect.anchoredPosition = new Vector2(
                         markerPos.x,
-                        markerPos.y - 80f
+                        markerPos.y - 30f
                     );
 
                     break;

@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.UI;
 using System.Collections;
 
 public class PlayerAttack : MonoBehaviour
@@ -24,12 +23,6 @@ public class PlayerAttack : MonoBehaviour
     public float attackShakeDuration = 0.1f;
     public float attackShakeMagnitude = 0.03f;
 
-    [Header("Crosshair")]
-    public Image crosshairImage;
-    public Color crosshairNormalColor = Color.white;
-    public Color crosshairHitColor = Color.red;
-    public float crosshairHitDuration = 0.15f;
-
     [Header("Hit Feedback")]
     public Color hitFlashColor = Color.white;
     public float hitFlashDuration = 0.1f;
@@ -44,9 +37,6 @@ public class PlayerAttack : MonoBehaviour
         playerCamera = GetComponentInChildren<Camera>();
         playerHealth = GetComponent<PlayerHealth>();
         ownColliders = GetComponentsInChildren<Collider>();
-
-        if (crosshairImage != null)
-            crosshairImage.color = crosshairNormalColor;
     }
 
     void Update()
@@ -56,6 +46,7 @@ public class PlayerAttack : MonoBehaviour
         PlayerController controller = GetComponent<PlayerController>();
         if (controller != null && !controller.canMove) return;
 
+        // Linksklick = Angreifen
         if (Mouse.current.leftButton.wasPressedThisFrame)
         {
             if (Time.time >= lastAttackTime + attackCooldown)
@@ -65,6 +56,7 @@ public class PlayerAttack : MonoBehaviour
             }
         }
 
+        // X-Taste = Destructibles zerstören
         if (Keyboard.current.xKey.wasPressedThisFrame)
         {
             TryHit();
@@ -95,13 +87,28 @@ public class PlayerAttack : MonoBehaviour
             if (IsOwnCollider(hit.collider))
                 continue;
 
-            // Gegner
-            EnemyMelee enemy = hit.collider.GetComponentInParent<EnemyMelee>();
-            if (enemy != null)
+            // Melee Gegner
+            EnemyMelee melee = hit.collider.GetComponentInParent<EnemyMelee>();
+            if (melee != null)
             {
-                enemy.TakeDamage(attackDamage);
+                melee.TakeDamage(attackDamage);
                 FlashEnemy(hit.collider.gameObject);
-                FlashCrosshair();
+
+                if (hitSound != null && AudioManager.Instance != null)
+                    AudioManager.Instance.PlaySFX(hitSound);
+
+                if (CameraShaker.Instance != null)
+                    CameraShaker.Instance.ShakeHit(attackShakeDuration, attackShakeMagnitude);
+
+                return;
+            }
+
+            // Fernkampf Gegner
+            EnemyRanged ranged = hit.collider.GetComponentInParent<EnemyRanged>();
+            if (ranged != null)
+            {
+                ranged.TakeDamage(attackDamage);
+                FlashEnemy(hit.collider.gameObject);
 
                 if (hitSound != null && AudioManager.Instance != null)
                     AudioManager.Instance.PlaySFX(hitSound);
@@ -117,7 +124,6 @@ public class PlayerAttack : MonoBehaviour
             if (destructible != null)
             {
                 destructible.TakeDamage(attackDamage);
-                FlashCrosshair();
 
                 if (CameraShaker.Instance != null)
                     CameraShaker.Instance.ShakeHit(attackShakeDuration, attackShakeMagnitude);
@@ -143,19 +149,6 @@ public class PlayerAttack : MonoBehaviour
     {
         if (missSound != null && AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX(missSound);
-    }
-
-    void FlashCrosshair()
-    {
-        if (crosshairImage != null)
-            StartCoroutine(CrosshairFlashRoutine());
-    }
-
-    IEnumerator CrosshairFlashRoutine()
-    {
-        crosshairImage.color = crosshairHitColor;
-        yield return new WaitForSeconds(crosshairHitDuration);
-        crosshairImage.color = crosshairNormalColor;
     }
 
     void FlashEnemy(GameObject enemyObj)
@@ -192,7 +185,6 @@ public class PlayerAttack : MonoBehaviour
             if (destructible != null)
             {
                 destructible.TakeDamage(hitDamage);
-                FlashCrosshair();
                 break;
             }
         }
