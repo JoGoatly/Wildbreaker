@@ -11,25 +11,21 @@ public class EnemyRanged : MonoBehaviour
     public float attackRange = 15f;
     public float minDistance = 10f;
     public float moveSpeed = 3f;
-    public float fleeSpeed = 6f;
+    public float fleeSpeed = 6f; // NEU: Geschwindigkeit beim Weglaufen
     public float rotationSpeed = 5f;
 
     [Header("Projectile")]
     public GameObject projectilePrefab;
     public Transform firePoint;
-    public float projectileSpeed = 25f; // GEÄNDERT: höher für flachere Parabel
+    public float projectileSpeed = 15f;
     public float projectileDamage = 10f;
     public float fireRate = 2f;
     public float projectileLifetime = 5f;
-    public float aimHeightOffset = 1.0f;
+    public float aimHeightOffset = 1.0f; // NEU: Zielhöhe einstellbar (vorher fest auf 1.2f)
 
-    // GEÄNDERT: Viel kleinere Streuung
-    [Header("Accuracy")]
-    [Range(0f, 1f)] public float nearMissChance = 0.30f;  // 30% knapp daneben
-    public float hitSpreadHorizontal = 0.08f;              // Normal: fast perfekt
-    public float hitSpreadVertical = 0.04f;
-    public float nearMissMin = 0.3f;                       // Daneben: mindestens so weit
-    public float nearMissMax = 0.6f;                       // Daneben: höchstens so weit
+    // NEU: Streuung für Ungenauigkeit
+    public float horizontalSpread = 1.5f;
+    public float verticalSpread = 0.5f;
 
     [Header("Sound")]
     public AudioClip shootSound;
@@ -78,6 +74,7 @@ public class EnemyRanged : MonoBehaviour
         if (hideHealthBarWhenFull && healthBarObject != null)
             healthBarObject.SetActive(false);
 
+        // FirePoint automatisch erstellen wenn keiner zugewiesen
         if (firePoint == null)
         {
             GameObject fp = new GameObject("FirePoint");
@@ -105,6 +102,7 @@ public class EnemyRanged : MonoBehaviour
 
         if (distance <= detectionRange)
         {
+            // Erster Sichtkontakt
             if (!playerDetected)
             {
                 playerDetected = true;
@@ -112,18 +110,21 @@ public class EnemyRanged : MonoBehaviour
                     AudioManager.Instance.PlaySFX(detectSound);
             }
 
+            // Zu nah → weglaufen
             if (distance < minDistance)
             {
-                agent.speed = fleeSpeed;
+                agent.speed = fleeSpeed; // NEU: Fluchtgeschwindigkeit setzen
                 Vector3 fleeDir = (transform.position - player.transform.position).normalized;
                 Vector3 fleePos = transform.position + fleeDir * 5f;
                 agent.SetDestination(fleePos);
             }
+            // Zu weit → näherkommen
             else if (distance > attackRange)
             {
-                agent.speed = moveSpeed;
+                agent.speed = moveSpeed; // NEU: Wieder auf normale Geschwindigkeit setzen
                 agent.SetDestination(player.transform.position);
             }
+            // In Schussreichweite → stehen bleiben und schießen
             else
             {
                 agent.ResetPath();
@@ -162,44 +163,23 @@ public class EnemyRanged : MonoBehaviour
         }
     }
 
-    // GEÄNDERT: Ballistisch korrekte Schussberechnung
     void Shoot()
     {
         if (player.isDead) return;
         if (projectilePrefab == null) return;
 
-        // Zielposition mit Offset
+        // GEÄNDERT: Perfekte Zielposition berechnen
         Vector3 targetPos = player.transform.position + Vector3.up * aimHeightOffset;
 
-        // Streuung anwenden
-        float offsetX;
-        float offsetY;
+        // GEÄNDERT: Zufälligen Offset generieren (Ungenauigkeit)
+        float randomX = Random.Range(-horizontalSpread, horizontalSpread);
+        float randomY = Random.Range(-verticalSpread, verticalSpread);
 
-        if (Random.value < nearMissChance)
-        {
-            // Knapp daneben
-            float side = Random.value < 0.5f ? -1f : 1f;
-            offsetX = side * Random.Range(nearMissMin, nearMissMax);
-            offsetY = Random.Range(-0.1f, 0.1f);
-        }
-        else
-        {
-            // Fast perfekt
-            offsetX = Random.Range(-hitSpreadHorizontal, hitSpreadHorizontal);
-            offsetY = Random.Range(-hitSpreadVertical, hitSpreadVertical);
-        }
+        // Offset relativ zur Blickrichtung des Gegners anwenden
+        targetPos += transform.right * randomX + transform.up * randomY;
 
-        targetPos += transform.right * offsetX + Vector3.up * offsetY;
-
-        // Ballistisch korrekte Abschussrichtung berechnen
-        Vector3 launchVelocity;
-        if (!TryGetBallisticVelocity(firePoint.position, targetPos, projectileSpeed, out launchVelocity))
-        {
-            // Fallback: einfach direkt drauf zielen (sollte selten vorkommen)
-            launchVelocity = (targetPos - firePoint.position).normalized * projectileSpeed;
-        }
-
-        Vector3 direction = launchVelocity.normalized;
+        // Finale Richtung berechnen
+        Vector3 direction = (targetPos - firePoint.position).normalized;
 
         // Projektil erstellen
         GameObject projectile = Instantiate(
@@ -208,12 +188,12 @@ public class EnemyRanged : MonoBehaviour
             Quaternion.LookRotation(direction)
         );
 
+        // Projektil Script hinzufügen
         EnemyProjectile proj = projectile.GetComponent<EnemyProjectile>();
         if (proj == null)
             proj = projectile.AddComponent<EnemyProjectile>();
 
-        // GEÄNDERT: Übergibt die volle berechnete Velocity statt direction * speed
-        proj.Init(direction, launchVelocity.magnitude, projectileDamage, projectileLifetime);
+        proj.Init(direction, projectileSpeed, projectileDamage, projectileLifetime);
 
         // Sound
         if (shootSound != null && AudioManager.Instance != null)
@@ -225,35 +205,6 @@ public class EnemyRanged : MonoBehaviour
             enemyRenderer.material.color = attackColor;
             Invoke(nameof(ResetColor), 0.2f);
         }
-    }
-
-    // NEU: Berechnet die Abschussgeschwindigkeit für eine ballistische Parabel
-    bool TryGetBallisticVelocity(Vector3 start, Vector3 target, float speed, out Vector3 velocity)
-    {
-        Vector3 toTarget = target - start;
-        Vector3 toTargetXZ = new Vector3(toTarget.x, 0f, toTarget.z);
-
-        float x = toTargetXZ.magnitude;
-        float y = toTarget.y;
-        float g = Mathf.Abs(Physics.gravity.y);
-
-        float speedSq = speed * speed;
-        float discriminant = speedSq * speedSq - g * (g * x * x + 2f * y * speedSq);
-
-        if (discriminant < 0f)
-        {
-            velocity = Vector3.zero;
-            return false;
-        }
-
-        float sqrtDisc = Mathf.Sqrt(discriminant);
-
-        // Flachere Flugbahn wählen (minus) für direkteren Schuss
-        float angle = Mathf.Atan2(speedSq - sqrtDisc, g * x);
-
-        Vector3 dirXZ = toTargetXZ.normalized;
-        velocity = dirXZ * speed * Mathf.Cos(angle) + Vector3.up * speed * Mathf.Sin(angle);
-        return true;
     }
 
     public void TakeDamage(float damage)
@@ -272,6 +223,7 @@ public class EnemyRanged : MonoBehaviour
             Invoke(nameof(ResetColor), 0.1f);
         }
 
+        // HealthBar updaten
         if (healthBarSlider != null)
             healthBarSlider.value = currentHealth;
 
@@ -322,12 +274,15 @@ public class EnemyRanged : MonoBehaviour
 
     void OnDrawGizmosSelected()
     {
+        // Gelb = Erkennung
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, detectionRange);
 
+        // Rot = Angriffsreichweite
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, attackRange);
 
+        // Grün = Minimaldistanz
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(transform.position, minDistance);
     }

@@ -153,17 +153,13 @@ MonoBehaviour:
   attackRange: 15
   minDistance: 10
   moveSpeed: 3
-  fleeSpeed: 6
   rotationSpeed: 5
   projectilePrefab: {fileID: 7152030579278266711, guid: 3714ad13645c21e419c15f5969bb489e, type: 3}
   firePoint: {fileID: 9214515559921250790}
   projectileSpeed: 15
   projectileDamage: 10
-  fireRate: 0.2
+  fireRate: 2
   projectileLifetime: 5
-  aimHeightOffset: 1
-  horizontalSpread: 1.5
-  verticalSpread: 0.5
   shootSound: {fileID: 0}
   hitSound: {fileID: 0}
   deathSound: {fileID: 0}
