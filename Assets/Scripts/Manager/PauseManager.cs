@@ -6,10 +6,19 @@ using TMPro;
 
 public class PauseManager : MonoBehaviour
 {
+    [Header("Haupt Panels")]
     public GameObject pausePanel;
-    public GameObject pauseSettingsPanel;
+    public GameObject settingsMenuPanel;
+
+    [Header("Unter-Einstellungen")]
+    public GameObject audioSettingsPanel;
+    public GameObject keybindingsPanel;
+
+    [Header("Sensitivity (im Keybindings Panel)")]
     public Slider sensitivitySlider;
     public TMP_Text sensitivityValueText;
+
+    [Header("Player")]
     public PlayerController playerController;
 
     private bool isPaused = false;
@@ -28,26 +37,36 @@ public class PauseManager : MonoBehaviour
     void PauseGame()
     {
         isPaused = true;
+        CloseAllPanels();
         pausePanel.SetActive(true);
-        pauseSettingsPanel.SetActive(false);
         Time.timeScale = 0f;
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
         playerController.canMove = false;
-        sensitivityValueText.text = sensitivitySlider.value.ToString("F1");
+
+        if (sensitivitySlider != null && sensitivityValueText != null)
+            sensitivityValueText.text = sensitivitySlider.value.ToString("F1");
     }
 
     void ResumeGame()
     {
         isPaused = false;
-        pausePanel.SetActive(false);
-        pauseSettingsPanel.SetActive(false);
+        CloseAllPanels();
         Time.timeScale = 1f;
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
         playerController.canMove = true;
     }
 
+    void CloseAllPanels()
+    {
+        if (pausePanel != null) pausePanel.SetActive(false);
+        if (settingsMenuPanel != null) settingsMenuPanel.SetActive(false);
+        if (audioSettingsPanel != null) audioSettingsPanel.SetActive(false);
+        if (keybindingsPanel != null) keybindingsPanel.SetActive(false);
+    }
+
+    // -------- Pause Panel --------
     public void OnResumeButtonClicked()
     {
         ResumeGame();
@@ -56,13 +75,7 @@ public class PauseManager : MonoBehaviour
     public void OnSettingsButtonClicked()
     {
         pausePanel.SetActive(false);
-        pauseSettingsPanel.SetActive(true);
-    }
-
-    public void OnCloseSettingsClicked()
-    {
-        pauseSettingsPanel.SetActive(false);
-        pausePanel.SetActive(true); // zurück zum PausePanel, NICHT alles schließen
+        settingsMenuPanel.SetActive(true);
     }
 
     public void OnMainMenuButtonClicked()
@@ -71,6 +84,34 @@ public class PauseManager : MonoBehaviour
         SceneManager.LoadScene("MainMenu");
     }
 
+    // -------- Settings Menu --------
+    public void OnOpenAudioSettings()
+    {
+        settingsMenuPanel.SetActive(false);
+        audioSettingsPanel.SetActive(true);
+    }
+
+    public void OnOpenKeybindings()
+    {
+        settingsMenuPanel.SetActive(false);
+        keybindingsPanel.SetActive(true);
+    }
+
+    // -------- Zurück Buttons --------
+    public void OnBackToPauseMenu()
+    {
+        settingsMenuPanel.SetActive(false);
+        pausePanel.SetActive(true);
+    }
+
+    public void OnBackToSettingsMenu()
+    {
+        audioSettingsPanel.SetActive(false);
+        keybindingsPanel.SetActive(false);
+        settingsMenuPanel.SetActive(true);
+    }
+
+    // -------- Sensitivity --------
     public void OnSensitivityChanged()
     {
         playerController.mouseSensitivity = sensitivitySlider.value;
