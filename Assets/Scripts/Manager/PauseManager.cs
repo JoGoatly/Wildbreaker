@@ -114,7 +114,9 @@ public class PauseManager : MonoBehaviour
     // -------- Sensitivity --------
     public void OnSensitivityChanged()
     {
+        if (sensitivitySlider == null) return;
         playerController.mouseSensitivity = sensitivitySlider.value;
-        sensitivityValueText.text = sensitivitySlider.value.ToString("F1");
+        if (sensitivityValueText != null)
+            sensitivityValueText.text = sensitivitySlider.value.ToString("F1");
     }
 }

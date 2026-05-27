@@ -8,26 +8,45 @@ public class KeybindingsMenu : MonoBehaviour
     [System.Serializable]
     public class KeybindingEntry
     {
-        public string actionName;   // z.B. "Vorne"
-        public Sprite keyIcon;      // Icon der Taste
+        public string actionName;       // z.B. "Vorne"
+        public Sprite keyboardIcon;     // Icon für Tastatur
+        public Sprite controllerIcon;   // Icon für Controller
     }
 
     [System.Serializable]
     public class KeybindingCategory
     {
-        public string categoryName;             // z.B. "Bewegung"
-        public List<KeybindingEntry> entries;   // Tasten in dieser Kategorie
+        public string categoryName;     // z.B. "Bewegung"
+        public List<KeybindingEntry> entries;
     }
 
     [Header("Daten")]
     public List<KeybindingCategory> categories;
 
     [Header("Referenzen")]
-    public Transform contentParent;     // Das "Content" GameObject im Scroll View
+    public Transform contentParent;             // Content im Scroll View
     public GameObject categoryHeaderPrefab;
     public GameObject keybindingEntryPrefab;
+    public Toggle inputDeviceToggle;            // Aus = Tastatur, An = Controller
 
     void OnEnable()
+    {
+        if (inputDeviceToggle != null)
+        {
+            inputDeviceToggle.onValueChanged.RemoveListener(OnToggleChanged);
+            inputDeviceToggle.onValueChanged.AddListener(OnToggleChanged);
+        }
+
+        BuildList();
+    }
+
+    void OnDisable()
+    {
+        if (inputDeviceToggle != null)
+            inputDeviceToggle.onValueChanged.RemoveListener(OnToggleChanged);
+    }
+
+    void OnToggleChanged(bool isController)
     {
         BuildList();
     }
@@ -38,7 +57,8 @@ public class KeybindingsMenu : MonoBehaviour
         foreach (Transform child in contentParent)
             Destroy(child.gameObject);
 
-        // Neu aufbauen
+        bool useController = inputDeviceToggle != null && inputDeviceToggle.isOn;
+
         foreach (var category in categories)
         {
             // Header
@@ -55,8 +75,15 @@ public class KeybindingsMenu : MonoBehaviour
                 TMP_Text label = entryGO.transform.Find("ActionLabel")?.GetComponent<TMP_Text>();
                 Image icon = entryGO.transform.Find("KeyIcon")?.GetComponent<Image>();
 
-                if (label != null) label.text = entry.actionName;
-                if (icon != null && entry.keyIcon != null) icon.sprite = entry.keyIcon;
+                if (label != null)
+                    label.text = entry.actionName;
+
+                if (icon != null)
+                {
+                    Sprite sprite = useController ? entry.controllerIcon : entry.keyboardIcon;
+                    icon.sprite = sprite;
+                    icon.enabled = sprite != null;
+                }
             }
         }
     }
