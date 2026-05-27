@@ -14,6 +14,40 @@ public class EnemyMelee : MonoBehaviour
     public float moveSpeed = 3.5f;
     public float rotationSpeed = 5f;
 
+    [Header("Attack Timing")]
+    public float slashHitDelay = 0.5f;
+    public float stabHitDelay = 0.4f;
+
+    [Header("Attack Hit Zones")]
+    public float stabHitRange = 3.5f;
+    public float stabHitAngle = 30f;
+    public float slashHitRange = 2.5f;
+    public float slashHitAngle = 120f;
+
+    [Header("Stab Wind-Up (Zurückgehen)")]
+    public float stabWindUpDistance = 1.0f;
+    public float stabWindUpDuration = 0.3f;
+
+    [Header("Stab Dash")]
+    public float stabDashDistance = 2f;
+    public float stabDashDuration = 0.3f;
+    public float stabDashDelay = 0.3f;
+
+    [Header("Attack Lock")]
+    public float attackLockDuration = 1.0f;
+
+    [Header("Animation")]
+    public Animator animator;
+
+    [Header("Trigger Names")]
+    public string triggerAttack1 = "AttackSlash01";
+    public string triggerAttack2 = "AttackSlash02";
+    public string triggerAttack3 = "AttackStab";
+    public string triggerTakeDamage = "TakeDamage";
+    public string triggerDeath = "Death";
+    public string triggerSpawn = "Spawn";
+    public string boolIsRunning = "IsRunning";
+
     [Header("Sound")]
     public AudioClip attackSound;
     public AudioClip hitSound;
@@ -33,8 +67,27 @@ public class EnemyMelee : MonoBehaviour
     private float currentHealth;
     private NavMeshAgent agent;
     private PlayerHealth player;
+    private PlayerController playerController;
     private float lastAttackTime = 0f;
     private bool isDead = false;
+    private string[] attackTriggers;
+    private int pendingAttackType = -1;
+
+    // Attack Lock
+    private bool isAttackLocked = false;
+    private float attackLockTimer = 0f;
+
+    // Stab Wind-Up (Zurückgehen)
+    private bool isWindingUp = false;
+    private Vector3 windUpDirection;
+    private float windUpTimer = 0f;
+    private float windUpSpeed;
+
+    // Stab Dash
+    private bool isStabDashing = false;
+    private Vector3 stabDashDirection;
+    private float stabDashTimer = 0f;
+    private float stabDashSpeed;
 
     void Start()
     {
@@ -42,12 +95,18 @@ public class EnemyMelee : MonoBehaviour
         agent = GetComponent<NavMeshAgent>();
         agent.speed = moveSpeed;
         player = FindFirstObjectByType<PlayerHealth>();
+        playerController = FindFirstObjectByType<PlayerController>();
 
         if (enemyRenderer == null)
             enemyRenderer = GetComponentInChildren<Renderer>();
 
         if (enemyRenderer != null)
             enemyRenderer.material.color = normalColor;
+
+        if (animator == null)
+            animator = GetComponentInChildren<Animator>();
+
+        attackTriggers = new string[] { triggerAttack1, triggerAttack2, triggerAttack3 };
 
         if (healthBarSlider != null)
         {
@@ -58,19 +117,58 @@ public class EnemyMelee : MonoBehaviour
 
         if (hideHealthBarWhenFull && healthBarObject != null)
             healthBarObject.SetActive(false);
+
+        FireTrigger(triggerSpawn);
     }
 
     void Update()
     {
         if (isDead)
         {
-            agent.ResetPath();
+            if (agent.enabled) agent.ResetPath();
+            return;
+        }
+
+        // Wind-Up (Zurückgehen vor Stich)
+        if (isWindingUp)
+        {
+            UpdateWindUp();
+            UpdateHealthBar();
+            return;
+        }
+
+        // Stab Dash
+        if (isStabDashing)
+        {
+            UpdateStabDash();
+            UpdateHealthBar();
+            return;
+        }
+
+        // Attack Lock
+        if (isAttackLocked)
+        {
+            attackLockTimer -= Time.deltaTime;
+
+            if (agent.enabled)
+            {
+                agent.ResetPath();
+                agent.velocity = Vector3.zero;
+            }
+
+            SetRunning(false);
+
+            if (attackLockTimer <= 0f)
+                isAttackLocked = false;
+
+            UpdateHealthBar();
             return;
         }
 
         if (player == null || player.isDead)
         {
-            agent.ResetPath();
+            if (agent.enabled) agent.ResetPath();
+            SetRunning(false);
             return;
         }
 
@@ -80,28 +178,110 @@ public class EnemyMelee : MonoBehaviour
         {
             if (distance > attackRange)
             {
-                agent.SetDestination(player.transform.position);
+                if (agent.enabled)
+                    agent.SetDestination(player.transform.position);
+
+                SetRunning(true);
             }
             else
             {
-                agent.ResetPath();
+                if (agent.enabled)
+                {
+                    agent.ResetPath();
+                    agent.velocity = Vector3.zero;
+                }
+
+                SetRunning(false);
 
                 if (Time.time >= lastAttackTime + attackCooldown)
                     Attack();
             }
 
-            LookAtPlayer();
+            if (!isAttackLocked && !isStabDashing && !isWindingUp)
+                LookAtPlayer();
         }
         else
         {
-            agent.ResetPath();
+            if (agent.enabled) agent.ResetPath();
+            SetRunning(false);
         }
 
         UpdateHealthBar();
     }
 
+    void UpdateWindUp()
+    {
+        windUpTimer -= Time.deltaTime;
+
+        if (windUpTimer <= 0f)
+        {
+            isWindingUp = false;
+            return;
+        }
+
+        if (agent.enabled)
+        {
+            agent.Move(windUpDirection * windUpSpeed * Time.deltaTime);
+        }
+    }
+
+    void StartWindUp()
+    {
+        if (isDead) return;
+        if (!agent.enabled) return;
+
+        // Richtung: weg vom Spieler (zurück)
+        Vector3 awayFromPlayer = transform.position - player.transform.position;
+        awayFromPlayer.y = 0f;
+        windUpDirection = awayFromPlayer.normalized;
+
+        windUpSpeed = stabWindUpDistance / stabWindUpDuration;
+        windUpTimer = stabWindUpDuration;
+        isWindingUp = true;
+
+        agent.ResetPath();
+        agent.velocity = Vector3.zero;
+    }
+
+    void UpdateStabDash()
+    {
+        stabDashTimer -= Time.deltaTime;
+
+        if (stabDashTimer <= 0f)
+        {
+            isStabDashing = false;
+            return;
+        }
+
+        if (agent.enabled)
+        {
+            agent.Move(stabDashDirection * stabDashSpeed * Time.deltaTime);
+        }
+    }
+
+    void StartStabDash()
+    {
+        if (isDead) return;
+        if (!agent.enabled) return;
+        if (player == null) return;
+
+        // Richtung: zum Spieler (nach vorne, eingefroren)
+        Vector3 toPlayer = player.transform.position - transform.position;
+        toPlayer.y = 0f;
+        stabDashDirection = toPlayer.normalized;
+
+        stabDashSpeed = stabDashDistance / stabDashDuration;
+        stabDashTimer = stabDashDuration;
+        isStabDashing = true;
+
+        agent.ResetPath();
+        agent.velocity = Vector3.zero;
+    }
+
     void LookAtPlayer()
     {
+        if (player == null) return;
+
         Vector3 dir = player.transform.position - transform.position;
         dir.y = 0f;
 
@@ -118,11 +298,37 @@ public class EnemyMelee : MonoBehaviour
 
     void Attack()
     {
-        if (player.isDead) return;
+        if (player == null || player.isDead) return;
 
         lastAttackTime = Time.time;
 
-        player.TakeDamage(attackDamage);
+        pendingAttackType = Random.Range(0, 3);
+
+        FireTrigger(attackTriggers[pendingAttackType]);
+
+        isAttackLocked = true;
+        attackLockTimer = attackLockDuration;
+
+        if (agent.enabled)
+        {
+            agent.ResetPath();
+            agent.velocity = Vector3.zero;
+        }
+
+        SetRunning(false);
+
+        if (pendingAttackType == 2)
+        {
+            // Stab: Zurückgehen → Dash → Hit
+            StartWindUp();
+            Invoke(nameof(StartStabDash), stabWindUpDuration + stabDashDelay);
+            Invoke(nameof(DelayedHit), stabWindUpDuration + stabDashDelay + stabHitDelay);
+        }
+        else
+        {
+            // Slash: Stehen bleiben → Hit
+            Invoke(nameof(DelayedHit), slashHitDelay);
+        }
 
         if (attackSound != null && AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX(attackSound);
@@ -130,8 +336,42 @@ public class EnemyMelee : MonoBehaviour
         if (enemyRenderer != null)
         {
             enemyRenderer.material.color = attackColor;
+            CancelInvoke(nameof(ResetColor));
             Invoke(nameof(ResetColor), 0.2f);
         }
+    }
+
+    void DelayedHit()
+    {
+        if (isDead) return;
+        if (player == null || player.isDead) return;
+
+        if (playerController != null && playerController.IsInvincible) return;
+
+        Vector3 toPlayer = player.transform.position - transform.position;
+        float distance = toPlayer.magnitude;
+        toPlayer.y = 0f;
+        float angle = Vector3.Angle(transform.forward, toPlayer.normalized);
+
+        bool hit = false;
+
+        if (pendingAttackType == 2)
+        {
+            if (distance <= stabHitRange && angle <= stabHitAngle * 0.5f)
+                hit = true;
+        }
+        else
+        {
+            if (distance <= slashHitRange && angle <= slashHitAngle * 0.5f)
+                hit = true;
+        }
+
+        if (hit)
+        {
+            player.TakeDamage(attackDamage);
+        }
+
+        pendingAttackType = -1;
     }
 
     public void TakeDamage(float damage)
@@ -141,16 +381,25 @@ public class EnemyMelee : MonoBehaviour
         currentHealth -= damage;
         currentHealth = Mathf.Max(currentHealth, 0f);
 
+        isStabDashing = false;
+        isWindingUp = false;
+        isAttackLocked = false;
+        CancelInvoke(nameof(StartStabDash));
+        CancelInvoke(nameof(StartWindUp));
+        CancelInvoke(nameof(DelayedHit));
+
+        FireTrigger(triggerTakeDamage);
+
         if (hitSound != null && AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX(hitSound);
 
         if (enemyRenderer != null)
         {
             enemyRenderer.material.color = hitColor;
+            CancelInvoke(nameof(ResetColor));
             Invoke(nameof(ResetColor), 0.1f);
         }
 
-        // HealthBar updaten
         if (healthBarSlider != null)
             healthBarSlider.value = currentHealth;
 
@@ -165,18 +414,52 @@ public class EnemyMelee : MonoBehaviour
     {
         isDead = true;
 
+        isStabDashing = false;
+        isWindingUp = false;
+        isAttackLocked = false;
+        CancelInvoke(nameof(DelayedHit));
+        CancelInvoke(nameof(StartStabDash));
+        CancelInvoke(nameof(StartWindUp));
+
+        FireTrigger(triggerDeath);
+
         if (deathSound != null && AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX(deathSound);
 
-        agent.ResetPath();
-        agent.enabled = false;
+        if (agent.enabled)
+        {
+            agent.ResetPath();
+            agent.velocity = Vector3.zero;
+            agent.enabled = false;
+        }
+
+        Collider col = GetComponent<Collider>();
+        if (col != null)
+            col.enabled = false;
 
         if (healthBarObject != null)
             healthBarObject.SetActive(false);
 
-        transform.Rotate(Vector3.right, 90f);
-
         Destroy(gameObject, 3f);
+    }
+
+    void FireTrigger(string triggerName)
+    {
+        if (animator == null) return;
+
+        foreach (string t in attackTriggers)
+            animator.ResetTrigger(t);
+        animator.ResetTrigger(triggerTakeDamage);
+        animator.ResetTrigger(triggerDeath);
+        animator.ResetTrigger(triggerSpawn);
+
+        animator.SetTrigger(triggerName);
+    }
+
+    void SetRunning(bool running)
+    {
+        if (animator == null) return;
+        animator.SetBool(boolIsRunning, running);
     }
 
     void ResetColor()
@@ -190,7 +473,6 @@ public class EnemyMelee : MonoBehaviour
         if (healthBarObject == null) return;
         if (!healthBarObject.activeSelf) return;
 
-        // HealthBar dreht sich immer zur Kamera
         Camera cam = Camera.main;
         if (cam != null)
         {
@@ -207,5 +489,17 @@ public class EnemyMelee : MonoBehaviour
 
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(transform.position, attackRange);
+
+        Gizmos.color = Color.cyan;
+        Vector3 stabLeft = Quaternion.Euler(0, -stabHitAngle * 0.5f, 0) * transform.forward * stabHitRange;
+        Vector3 stabRight = Quaternion.Euler(0, stabHitAngle * 0.5f, 0) * transform.forward * stabHitRange;
+        Gizmos.DrawLine(transform.position, transform.position + stabLeft);
+        Gizmos.DrawLine(transform.position, transform.position + stabRight);
+
+        Gizmos.color = Color.magenta;
+        Vector3 slashLeft = Quaternion.Euler(0, -slashHitAngle * 0.5f, 0) * transform.forward * slashHitRange;
+        Vector3 slashRight = Quaternion.Euler(0, slashHitAngle * 0.5f, 0) * transform.forward * slashHitRange;
+        Gizmos.DrawLine(transform.position, transform.position + slashLeft);
+        Gizmos.DrawLine(transform.position, transform.position + slashRight);
     }
 }

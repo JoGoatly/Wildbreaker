@@ -10,13 +10,19 @@ public class PlayerController : MonoBehaviour
     public float airSpeedMultiplier = 1.5f;
     public bool canMove = true;
 
+    [Header("Dodge / Ausweichen")]
+    public float dodgeForce = 12f;
+    public float dodgeDuration = 0.4f;
+    public float dodgeCooldown = 0.8f;
+    public float dodgeInvincibilityDuration = 0.3f;
+
     [Header("Pickup Kamera")]
     public float pickupOffsetX = -0.5f;
     public float cameraShiftSpeed = 5f;
 
     [Header("Respawn")]
-    public float fallThreshold = -20f;           // Ab welcher Y-Höhe = gefallen
-    public float savePositionInterval = 0.5f;    // Wie oft Position gespeichert wird
+    public float fallThreshold = -20f;
+    public float savePositionInterval = 0.5f;
 
     public Transform groundCheck;
     public float groundDistance = 0.3f;
@@ -34,6 +40,17 @@ public class PlayerController : MonoBehaviour
     private Quaternion lastSafeRotation;
     private float saveTimer;
 
+    // Dodge
+    private bool isDodging = false;
+    private bool isInvincible = false;
+    private float dodgeTimer = 0f;
+    private float dodgeCooldownTimer = 0f;
+    private float invincibilityTimer = 0f;
+    private Vector3 dodgeDirection;
+
+    // Public property damit EnemyMelee prüfen kann ob Spieler unverwundbar ist
+    public bool IsInvincible => isInvincible;
+
     void Start()
     {
         playerCamera = GetComponentInChildren<Camera>();
@@ -42,7 +59,6 @@ public class PlayerController : MonoBehaviour
         defaultCameraLocalPosition = playerCamera.transform.localPosition;
         targetCameraLocalPosition = defaultCameraLocalPosition;
 
-        // Startposition als erste sichere Position
         lastSafePosition = transform.position;
         lastSafeRotation = transform.rotation;
 
@@ -54,6 +70,8 @@ public class PlayerController : MonoBehaviour
     {
         HandleMouseLook();
         HandleJump();
+        HandleDodge();
+        UpdateDodgeTimers();
         CheckFallRespawn();
         SaveSafePosition();
 
@@ -72,7 +90,19 @@ public class PlayerController : MonoBehaviour
 
     void FixedUpdate()
     {
-        HandleMovement();
+        if (isDodging)
+        {
+            rb.linearVelocity = new Vector3(
+                dodgeDirection.x * dodgeForce,
+                rb.linearVelocity.y,
+                dodgeDirection.z * dodgeForce
+            );
+        }
+        else
+        {
+            HandleMovement();
+        }
+
         CheckGround();
     }
 
@@ -81,11 +111,78 @@ public class PlayerController : MonoBehaviour
         isGrounded = Physics.CheckSphere(groundCheck.position, groundDistance, groundMask);
     }
 
+    void HandleDodge()
+    {
+        if (!canMove) return;
+        if (!isGrounded) return;
+        if (isDodging) return;
+        if (dodgeCooldownTimer > 0f) return;
+
+        // Rechte Maustaste für Dodge
+        if (Mouse.current.rightButton.wasPressedThisFrame)
+        {
+            StartDodge();
+        }
+    }
+
+    void StartDodge()
+    {
+        // Bewegungsrichtung ermitteln
+        Vector2 moveInput = new Vector2(
+            Keyboard.current.dKey.isPressed ? 1f : Keyboard.current.aKey.isPressed ? -1f : 0f,
+            Keyboard.current.wKey.isPressed ? 1f : Keyboard.current.sKey.isPressed ? -1f : 0f
+        );
+
+        // Wenn keine Richtung gedrückt → nach hinten ausweichen
+        if (moveInput.sqrMagnitude < 0.01f)
+        {
+            dodgeDirection = -transform.forward;
+        }
+        else
+        {
+            dodgeDirection = (transform.right * moveInput.x + transform.forward * moveInput.y).normalized;
+        }
+
+        isDodging = true;
+        isInvincible = true;
+        dodgeTimer = dodgeDuration;
+        dodgeCooldownTimer = dodgeCooldown;
+        invincibilityTimer = dodgeInvincibilityDuration;
+    }
+
+    void UpdateDodgeTimers()
+    {
+        // Dodge-Duration
+        if (isDodging)
+        {
+            dodgeTimer -= Time.deltaTime;
+            if (dodgeTimer <= 0f)
+            {
+                isDodging = false;
+            }
+        }
+
+        // Invincibility
+        if (isInvincible)
+        {
+            invincibilityTimer -= Time.deltaTime;
+            if (invincibilityTimer <= 0f)
+            {
+                isInvincible = false;
+            }
+        }
+
+        // Cooldown
+        if (dodgeCooldownTimer > 0f)
+        {
+            dodgeCooldownTimer -= Time.deltaTime;
+        }
+    }
+
     void SaveSafePosition()
     {
         saveTimer += Time.deltaTime;
 
-        // Nur speichern wenn am Boden und Timer abgelaufen
         if (isGrounded && saveTimer >= savePositionInterval)
         {
             lastSafePosition = transform.position;
@@ -104,20 +201,17 @@ public class PlayerController : MonoBehaviour
 
     void Respawn()
     {
-        // Velocity stoppen
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
 
-        // Zur letzten sicheren Position teleportieren
         transform.position = lastSafePosition;
         transform.rotation = lastSafeRotation;
-
-        Debug.Log("Respawned an letzter sicherer Position!");
     }
 
     void HandleJump()
     {
         if (!canMove) return;
+        if (isDodging) return;
 
         if (Keyboard.current.spaceKey.wasPressedThisFrame && isGrounded)
         {
