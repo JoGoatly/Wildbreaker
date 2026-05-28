@@ -8,26 +8,34 @@ public class KeybindingsMenu : MonoBehaviour
     [System.Serializable]
     public class KeybindingEntry
     {
-        public string actionName;       // z.B. "Vorne"
-        public Sprite keyboardIcon;     // Icon für Tastatur
-        public Sprite controllerIcon;   // Icon für Controller
+        public string actionName;
+        public Sprite keyIcon;
     }
 
     [System.Serializable]
     public class KeybindingCategory
     {
-        public string categoryName;     // z.B. "Bewegung"
+        public string categoryName;
         public List<KeybindingEntry> entries;
     }
 
-    [Header("Daten")]
-    public List<KeybindingCategory> categories;
+    [Header("Tastatur Belegung")]
+    public List<KeybindingCategory> keyboardCategories;
+
+    [Header("Controller Belegung")]
+    public List<KeybindingCategory> controllerCategories;
 
     [Header("Referenzen")]
-    public Transform contentParent;             // Content im Scroll View
+    public Transform contentParent;
     public GameObject categoryHeaderPrefab;
     public GameObject keybindingEntryPrefab;
-    public Toggle inputDeviceToggle;            // Aus = Tastatur, An = Controller
+    public Toggle inputDeviceToggle;
+
+    [Header("Layout")]
+    public float entryWidth = 400f;
+    public float entryHeight = 50f;
+    public float headerWidth = 400f;
+    public float headerHeight = 60f;
 
     void OnEnable()
     {
@@ -53,16 +61,18 @@ public class KeybindingsMenu : MonoBehaviour
 
     void BuildList()
     {
-        // Alte Einträge löschen
         foreach (Transform child in contentParent)
             Destroy(child.gameObject);
 
         bool useController = inputDeviceToggle != null && inputDeviceToggle.isOn;
+        List<KeybindingCategory> activeList = useController ? controllerCategories : keyboardCategories;
 
-        foreach (var category in categories)
+        foreach (var category in activeList)
         {
             // Header
             GameObject header = Instantiate(categoryHeaderPrefab, contentParent);
+            ForceSize(header, headerWidth, headerHeight);
+
             TMP_Text headerText = header.GetComponentInChildren<TMP_Text>();
             if (headerText != null)
                 headerText.text = category.categoryName;
@@ -71,6 +81,7 @@ public class KeybindingsMenu : MonoBehaviour
             foreach (var entry in category.entries)
             {
                 GameObject entryGO = Instantiate(keybindingEntryPrefab, contentParent);
+                ForceSize(entryGO, entryWidth, entryHeight);
 
                 TMP_Text label = entryGO.transform.Find("ActionLabel")?.GetComponent<TMP_Text>();
                 Image icon = entryGO.transform.Find("KeyIcon")?.GetComponent<Image>();
@@ -80,11 +91,21 @@ public class KeybindingsMenu : MonoBehaviour
 
                 if (icon != null)
                 {
-                    Sprite sprite = useController ? entry.controllerIcon : entry.keyboardIcon;
-                    icon.sprite = sprite;
-                    icon.enabled = sprite != null;
+                    icon.sprite = entry.keyIcon;
+                    icon.enabled = entry.keyIcon != null;
                 }
             }
         }
+    }
+
+    void ForceSize(GameObject go, float width, float height)
+    {
+        LayoutElement le = go.GetComponent<LayoutElement>();
+        if (le == null) le = go.AddComponent<LayoutElement>();
+
+        le.preferredWidth = width;
+        le.preferredHeight = height;
+        le.flexibleWidth = 0;
+        le.flexibleHeight = 0;
     }
 }

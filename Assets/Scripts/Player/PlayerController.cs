@@ -50,7 +50,7 @@ public class PlayerController : MonoBehaviour
 
     // Pickup Kamera State
     private bool isHoldingObject = false;
-    private bool isCtrlHeld = false;
+    private bool isCtrlToggled = false;
 
     // Public property damit EnemyMelee prüfen kann ob Spieler unverwundbar ist
     public bool IsInvincible => isInvincible;
@@ -78,7 +78,7 @@ public class PlayerController : MonoBehaviour
         UpdateDodgeTimers();
         CheckFallRespawn();
         SaveSafePosition();
-        HandleCtrlCameraOffset();
+        HandleCtrlCameraToggle();
 
         playerCamera.transform.localPosition = Vector3.Lerp(
             playerCamera.transform.localPosition,
@@ -93,20 +93,18 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    void HandleCtrlCameraOffset()
+    void HandleCtrlCameraToggle()
     {
-        bool ctrlPressed = Keyboard.current.leftCtrlKey.isPressed;
-
-        if (ctrlPressed != isCtrlHeld)
+        if (Keyboard.current.leftCtrlKey.wasPressedThisFrame)
         {
-            isCtrlHeld = ctrlPressed;
+            isCtrlToggled = !isCtrlToggled;
             UpdateCameraTarget();
         }
     }
 
     void UpdateCameraTarget()
     {
-        if (isHoldingObject || isCtrlHeld)
+        if (isHoldingObject || isCtrlToggled)
             targetCameraLocalPosition = defaultCameraLocalPosition + new Vector3(pickupOffsetX, 0f, 0f);
         else
             targetCameraLocalPosition = defaultCameraLocalPosition;
